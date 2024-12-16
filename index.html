@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>알림장 작성</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>알림장 작성</h1>
+        </header>
+
+        <form class="notification-form">
+            <div class="form-group">
+                <label for="content">내용</label>
+                <textarea id="content" placeholder="알림장은 1:1로 전송됩니다." maxlength="50000"></textarea>
+                <button type="button" id="auto-complete-button">자동 완성</button>
+            </div>
+        </form>
+
+        <script>
+            // 서버로 요청을 보내는 함수
+            async function fetchCompletion(prompt) {
+                try {
+                    const response = await fetch('http://localhost:3000/api/completion', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ prompt })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('Server Error:', errorText);
+                        throw new Error(`Server Error: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    return data.result;
+                } catch (error) {
+                    console.error('자동 완성 오류:', error);
+                    alert('내용을 생성하는 중 문제가 발생했습니다. 다시 시도해주세요.');
+                    return null;
+                }
+            }
+
+            // DOM 요소 캐싱
+            const contentField = document.getElementById('content');
+            const autoCompleteButton = document.getElementById('auto-complete-button');
+
+            // "자동 완성" 버튼 클릭 이벤트
+            autoCompleteButton.addEventListener('click', async () => {
+                const prompt = "애견유치원 알림장을 작성해줘.";
+
+                try {
+                    const completion = await fetchCompletion(prompt);
+                    if (completion) {
+                        contentField.value += `\n${completion}`; // 기존 텍스트에 추가
+                    }
+                } catch (error) {
+                    console.error('버튼 클릭 처리 중 오류:', error);
+                }
+            });
+        </script>
+    </div>
+</body>
+</html>
