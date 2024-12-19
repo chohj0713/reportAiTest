@@ -34,6 +34,26 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 
+// 업로드된 파일의 URL 반환 API
+app.post('/uploads', upload.single('photo'), (req, res) => {
+    try {
+        const fileName = req.file?.filename || null;
+
+        if (!fileName) {
+            return res.status(400).json({ error: '파일 업로드 실패' });
+        }
+
+        const imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
+        console.log('Uploaded file URL:', imageURL);
+
+        // 업로드된 이미지의 URL 반환
+        res.status(200).json({ url: imageURL });
+    } catch (error) {
+        console.error('File upload error:', error.message);
+        res.status(500).json({ error: '파일 업로드 중 문제가 발생했습니다.', details: error.message });
+    }
+});
+
 // 이미지 및 텍스트 처리 API
 app.post('/api/completion', upload.single('photo'), async (req, res) => {
     try {
@@ -47,6 +67,7 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
         }
 
         // 로그: 이미지 URL 생성 여부 확인
+        console.log('Uploaded file Name:', fileName || 'No file uploaded');
         console.log('Generated imageURL:', imageURL || 'No image uploaded');
 
         // 메시지 초기화
@@ -83,7 +104,7 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
             body: JSON.stringify({
                 model: 'gpt-4o-mini',
                 messages,
-                max_tokens: 300
+                max_completion_tokens: 500
             })
         });
 
