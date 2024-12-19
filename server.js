@@ -39,7 +39,15 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
     try {
         const content = req.body.content?.trim(); // 사용자 입력 내용
         const fileName = req.file?.filename || null; // 업로드된 파일 이름
-        const imageURL = fileName ? `${GITHUB_PAGES_URL}/${fileName}` : null;
+
+        // 이미지 URL 생성
+        let imageURL = null;
+        if (fileName) {
+            imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
+        }
+
+        // 로그: 이미지 URL 생성 여부 확인
+        console.log('Generated imageURL:', imageURL || 'No image uploaded');
 
         // 메시지 초기화
         const messages = [
@@ -56,13 +64,14 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
             messages.push({
                 role: 'user',
                 content: [
-                    { type: 'text', text: '사진을 분석해서 내용에 추가해줘.' },
+                    { type: 'text', text: '사진을 분석해서 애견유치원 알림장을 작성해줘.' },
                     { type: 'image_url', image_url: { url: imageURL } }
                 ]
             });
         }
 
-        console.log('OPENAI API REequest Prompt:', JSON.stringify(messages, null, 2));
+        // OpenAI API 요청 메시지 로깅
+        console.log('OpenAI API Request Prompt:', JSON.stringify(messages, null, 2));
 
         // OpenAI API 호출
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
