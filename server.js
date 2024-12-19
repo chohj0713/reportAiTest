@@ -38,10 +38,11 @@ app.use(express.json());
 app.post('/api/completion', upload.single('photo'), async (req, res) => {
     try {
         const content = req.body.content?.trim() || '애견유치원 알림장을 작성해줘.';
+        const fileName = req.file?.originalname || null; // 업로드된 파일 이름
         let imageURL = null;
 
-        if (req.file) {
-            const fileName = req.file.originalname; // 업로드된 파일 이름
+        if (fileName) {
+            // GitHub Pages URL로 설정
             imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
         }
 

@@ -22,6 +22,7 @@
             </div>
             <button type="button" id="autoCompleteButton">자동 완성</button>
         </form>
+
         <script>
             const photoInput = document.getElementById('photoInput');
             const contentField = document.getElementById('content');
@@ -30,7 +31,7 @@
             autoCompleteButton.addEventListener('click', async () => {
                 const formData = new FormData();
                 const content = contentField.value.trim();
-                const photoFile = photoInput.files[0]; // 업로드된 첫 번째 파일
+                const photoFile = photoInput.files[0];
 
                 // 기본 메시지가 항상 포함되도록 설정
                 if (!content && !photoFile) {
@@ -40,7 +41,10 @@
                 }
 
                 if (photoFile) {
-                    formData.append('photo', photoFile); // 이미지 추가
+                    // GitHub Pages URL로 처리해야 하는 경우 URL 필드 추가
+                    const fileName = photoFile.name;
+                    const githubURL = `https://chohj0713.github.io/reportAiTest/uploads/${fileName}`;
+                    formData.append('photo_url', githubURL); // URL 전송
                 }
 
                 autoCompleteButton.textContent = '생성 중...'; // 버튼 상태 변경
