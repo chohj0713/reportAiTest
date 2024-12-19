@@ -1,44 +1,70 @@
-global.fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+import express from 'express';
+import cors from 'cors';
+import multer from 'multer';
+import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const express = require('express');
-const cors = require('cors'); // 브라우저 요청 허용
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// OpenAI API 키 설정 (환경 변수 사용 권장)
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+// 파일 업로드 설정
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => {
+            const uploadPath = path.join(__dirname, 'uploads');
+            if (!fs.existsSync(uploadPath)) {
+                fs.mkdirSync(uploadPath, { recursive: true });
+            }
+            cb(null, uploadPath);
+        },
+        filename: (req, file, cb) => {
+            cb(null, `${Date.now()}-${file.originalname}`);
+        }
+    }),
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB 제한
+});
 
-// Middleware 설정
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
 
-app.post('/api/completion', async (req, res) => {
-    const { prompt } = req.body;
-
-    if (!prompt) {
-        return res.status(400).json({ error: 'Prompt is required' });
-    }
-
+// 이미지 및 텍스트 처리 API
+app.post('/api/completion', upload.single('photo'), async (req, res) => {
     try {
-        // OpenAI API 호출
+        const content = req.body.content?.trim() || '애견유치원 알림장을 작성해줘.'; // 기본 메시지 설정
+        const photoPath = req.file?.path; // 업로드된 이미지 경로
+        let imageURL;
+
+        if (photoPath) {
+            imageURL = `http://localhost:3000/uploads/${path.basename(photoPath)}`;
+        }
+
+        const messages = [
+            { role: 'user', content: [{ type: 'text', text: content }] }
+        ];
+
+        if (imageURL) {
+            messages[0].content.push({
+                type: 'image_url',
+                image_url: { url: imageURL }
+            });
+        }
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${OPENAI_API_KEY}`
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 model: 'gpt-4o-mini',
-                messages: [
-                    { role: 'system', content: 'You are a helpful assistant.' },
-                    { role: 'user', content: prompt }
-                ],
-                max_tokens: 150, // 응답 최대 토큰 길이 설정
-                temperature: 0.7, // 텍스트 창의성 설정
-                frequency_penalty: 0.2, // 동일 단어 반복 감소
-                presence_penalty: 0.6, // 새로운 주제 도입 유도
-                stop: null // 종료 기준 설정
+                messages,
+                max_tokens: 300
             })
         });
 
@@ -51,9 +77,9 @@ app.post('/api/completion', async (req, res) => {
             });
         }
 
-        // API 응답 성공 시 데이터 처리
         const data = await response.json();
         const completion = data.choices[0]?.message?.content?.trim();
+
         res.status(200).json({ result: completion });
     } catch (error) {
         console.error('Server Error:', error.message);
@@ -61,7 +87,10 @@ app.post('/api/completion', async (req, res) => {
     }
 });
 
-// 서버 시작
+// 업로드된 파일 제공
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// 서버 실행
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
