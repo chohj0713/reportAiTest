@@ -25,7 +25,7 @@ const upload = multer({
             cb(null, uploadPath);
         },
         filename: (req, file, cb) => {
-            cb(null, file.originalname);
+            cb(null, `${Date.now()}-${file.originalname}`);
         }
     }),
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB 제한
@@ -38,38 +38,31 @@ app.use(express.json());
 app.post('/api/completion', upload.single('photo'), async (req, res) => {
     try {
         const content = req.body.content?.trim(); // 사용자 입력 내용
-        const fileName = req.file?.originalname || null; // 업로드된 파일 이름
-        let imageURL = null;
+        const fileName = req.file?.filename || null; // 업로드된 파일 이름
+        const imageURL = fileName ? `${GITHUB_PAGES_URL}/${fileName}` : null;
 
-        if (fileName) {
-            // GitHub Pages URL로 설정
-            imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
-        }
-
-        // 로깅: 업로드된 파일 정보
-        console.log('Uploaded File Name:', fileName || 'No file uploaded');
-        console.log('Generated Photo URL (GitHub):', imageURL || 'No image URL');
-        console.log('Content:', content || 'No content provided');
-
-        // 메시지 구성
+        // 메시지 초기화
         const messages = [
-            { role: 'user', content: '애견유치원 알림장을 작성해줘.' }
+            { role: 'user', content: [{ type: 'text', text: '애견유치원 알림장을 작성해줘.' }] }
         ];
 
+        // 텍스트 내용 추가
         if (content) {
-            messages.push({ role: 'user', content: `내용을 참고해서 작성해줘: ${content}` });
+            messages.push({ role: 'user', content: [{ type: 'text', text: `내용을 참고해서 작성해줘: ${content}` }] });
         }
 
+        // 이미지 URL 추가
         if (imageURL) {
             messages.push({
                 role: 'user',
-                content: { type: 'image_url', image_url: { url: imageURL } }
+                content: [
+                    { type: 'text', text: '사진을 분석해서 내용에 추가해줘.' },
+                    { type: 'image_url', image_url: { url: imageURL } }
+                ]
             });
         }
 
-        // 로깅: OpenAI API에 전달될 메시지
-        console.log('OpenAI API Messages:', JSON.stringify(messages, null, 2));
-
+        // OpenAI API 호출
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
