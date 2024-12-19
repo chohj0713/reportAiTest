@@ -12,6 +12,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const GITHUB_PAGES_URL = 'https://chohj0713.github.io/reportAiTest/uploads';
 
 // 파일 업로드 설정
 const upload = multer({
@@ -36,12 +37,12 @@ app.use(express.json());
 // 이미지 및 텍스트 처리 API
 app.post('/api/completion', upload.single('photo'), async (req, res) => {
     try {
-        const content = req.body.content?.trim() || '애견유치원 알림장을 작성해줘.'; // 기본 메시지 설정
-        const photoPath = req.file?.path; // 업로드된 이미지 경로
-        let imageURL;
+        const content = req.body.content?.trim() || '애견유치원 알림장을 작성해줘.';
+        let imageURL = null;
 
-        if (photoPath) {
-            imageURL = `http://localhost:3000/uploads/${path.basename(photoPath)}`;
+        if (req.file) {
+            const fileName = req.file.originalname; // 업로드된 파일 이름
+            imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
         }
 
         const messages = [
