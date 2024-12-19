@@ -29,64 +29,46 @@
             const autoCompleteButton = document.getElementById('autoCompleteButton');
         
             autoCompleteButton.addEventListener('click', async () => {
+                const formData = new FormData();
                 const content = contentField.value.trim();
                 const photoFile = photoInput.files[0];
-                let photoURL = null;
-        
-                // 기본 메시지가 항상 포함되도록 설정
+
                 if (!content && !photoFile) {
                     alert('내용 또는 이미지를 입력하거나 첨부해야 합니다.');
                     return;
                 }
-        
-                autoCompleteButton.textContent = '생성 중...'; // 버튼 상태 변경
-        
+
+                formData.append('content', content || '애견유치원 알림장을 작성해줘.');
+
+                if (photoFile) {
+                    formData.append('photo', photoFile);
+                    console.log('Photo file appended:', photoFile.name); // 로그 추가
+                } else {
+                    console.log('No photo file selected.'); // 로그 추가
+                }
+
+                autoCompleteButton.textContent = '생성 중...';
+
                 try {
-                    // 이미지를 업로드한 후 URL 반환
-                    if (photoFile) {
-                        const uploadFormData = new FormData();
-                        uploadFormData.append('photo', photoFile);
-        
-                        const uploadResponse = await fetch('http://localhost:3000/uploads', {
-                            method: 'POST',
-                            body: uploadFormData
-                        });
-        
-                        if (!uploadResponse.ok) {
-                            throw new Error('이미지 업로드 중 문제가 발생했습니다.');
-                        }
-        
-                        const uploadData = await uploadResponse.json();
-                        photoURL = uploadData.url; // 서버에서 반환된 이미지 URL
-                        console.log('Uploaded photo URL:', photoURL);
-                    }
-        
-                    // OpenAI API 요청을 위한 FormData 구성
-                    const formData = new FormData();
-                    formData.append('content', content || '애견유치원 알림장을 작성해줘.');
-                    if (photoURL) {
-                        formData.append('photo_url', photoURL); // 업로드된 이미지 URL 추가
-                    }
-        
                     const response = await fetch('http://localhost:3000/api/completion', {
                         method: 'POST',
                         body: formData
                     });
-        
+
                     if (!response.ok) {
                         const errorText = await response.text();
                         console.error('Server Error:', errorText);
                         alert('내용을 생성하는 중 문제가 발생했습니다.');
                         return;
                     }
-        
+
                     const data = await response.json();
-                    contentField.value += `\n${data.result}`; // 결과 추가
+                    contentField.value += `\n${data.result}`;
                 } catch (error) {
                     console.error('자동 완성 오류:', error);
                     alert('서버와 통신하는 동안 문제가 발생했습니다.');
                 } finally {
-                    autoCompleteButton.textContent = '자동 완성'; // 버튼 상태 복원
+                    autoCompleteButton.textContent = '자동 완성';
                 }
             });
         </script>        

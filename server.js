@@ -57,8 +57,8 @@ app.post('/uploads', upload.single('photo'), (req, res) => {
 // 이미지 및 텍스트 처리 API
 app.post('/api/completion', upload.single('photo'), async (req, res) => {
     try {
-        const content = req.body.content?.trim(); // 사용자 입력 내용
-        const fileName = req.file?.filename || null; // 업로드된 파일 이름
+        const content = req.body.content?.trim() || '애견유치원 알림장을 작성해줘.';
+        const fileName = req.file?.filename || null;
 
         // 이미지 URL 생성
         let imageURL = null;
@@ -66,8 +66,8 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
             imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
         }
 
-        // 로그: 이미지 URL 생성 여부 확인
-        console.log('Uploaded file Name:', fileName || 'No file uploaded');
+        // 로그: 업로드된 파일 확인
+        console.log('Uploaded file Name:', req.file ? fileName : 'No file uploaded');
         console.log('Generated imageURL:', imageURL || 'No image uploaded');
 
         // 메시지 초기화
@@ -110,12 +110,7 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('OpenAI API Error:', {
-                status: response.status,
-                statusText: response.statusText,
-                errorDetails: errorText,
-                attemptedImageURL: imageURL || 'No image URL provided'
-            });
+            console.error('OpenAI API Error:', errorText);
             return res.status(response.status).json({
                 error: `OpenAI API Error: ${response.statusText}`,
                 details: errorText
