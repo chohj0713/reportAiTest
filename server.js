@@ -46,6 +46,11 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
             imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
         }
 
+        // 로깅: 업로드된 파일 정보
+        console.log('Uploaded File Name:', req.file?.originalname || 'No file uploaded');
+        console.log('Generated Photo URL (GitHub):', imageURL || 'No image URL');
+        console.log('Content:', content);
+
         const messages = [
             { role: 'user', content: [{ type: 'text', text: content }] }
         ];
@@ -56,6 +61,9 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
                 image_url: { url: imageURL }
             });
         }
+
+        // 로깅: OpenAI API에 전달될 메시지
+        console.log('OpenAI API Messages:', JSON.stringify(messages, null, 2));
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -72,7 +80,12 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('OpenAI API Error:', errorText);
+            console.error('OpenAI API Error:', {
+                status: response.status,
+                statusText: response.statusText,
+                errorDetails: errorText,
+                attemptedImageURL: imageURL || 'No image URL provided'
+            });
             return res.status(response.status).json({
                 error: `OpenAI API Error: ${response.statusText}`,
                 details: errorText
@@ -84,7 +97,10 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
 
         res.status(200).json({ result: completion });
     } catch (error) {
-        console.error('Server Error:', error.message);
+        console.error('Server Error:', {
+            message: error.message,
+            stack: error.stack
+        });
         res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
@@ -95,4 +111,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // 서버 실행
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Uploads are available at http://localhost:${PORT}/uploads`);
+    console.log(`GitHub Pages URL: ${GITHUB_PAGES_URL}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`OpenAI API Key is ${OPENAI_API_KEY ? 'set' : 'missing'}`);
+}).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use. Please use a different port.`);
+    } else {
+        console.error('Server encountered an error:', err.message);
+    }
 });
