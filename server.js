@@ -25,7 +25,7 @@ const upload = multer({
             cb(null, uploadPath);
         },
         filename: (req, file, cb) => {
-            cb(null, `${Date.now()}-${file.originalname}`);
+            cb(null, file.originalname);
         }
     }),
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB 제한
@@ -37,7 +37,7 @@ app.use(express.json());
 // 이미지 및 텍스트 처리 API
 app.post('/api/completion', upload.single('photo'), async (req, res) => {
     try {
-        const content = req.body.content?.trim() || '애견유치원 알림장을 작성해줘.';
+        const content = req.body.content?.trim(); // 사용자 입력 내용
         const fileName = req.file?.originalname || null; // 업로드된 파일 이름
         let imageURL = null;
 
@@ -47,18 +47,23 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
         }
 
         // 로깅: 업로드된 파일 정보
-        console.log('Uploaded File Name:', req.file?.originalname || 'No file uploaded');
+        console.log('Uploaded File Name:', fileName || 'No file uploaded');
         console.log('Generated Photo URL (GitHub):', imageURL || 'No image URL');
-        console.log('Content:', content);
+        console.log('Content:', content || 'No content provided');
 
+        // 메시지 구성
         const messages = [
-            { role: 'user', content: [{ type: 'text', text: content }] }
+            { role: 'user', content: '애견유치원 알림장을 작성해줘.' }
         ];
 
+        if (content) {
+            messages.push({ role: 'user', content: `내용을 참고해서 작성해줘: ${content}` });
+        }
+
         if (imageURL) {
-            messages[0].content.push({
-                type: 'image_url',
-                image_url: { url: imageURL }
+            messages.push({
+                role: 'user',
+                content: { type: 'image_url', image_url: { url: imageURL } }
             });
         }
 
@@ -113,12 +118,4 @@ app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Uploads are available at http://localhost:${PORT}/uploads`);
     console.log(`GitHub Pages URL: ${GITHUB_PAGES_URL}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`OpenAI API Key is ${OPENAI_API_KEY ? 'set' : 'missing'}`);
-}).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use. Please use a different port.`);
-    } else {
-        console.error('Server encountered an error:', err.message);
-    }
 });
