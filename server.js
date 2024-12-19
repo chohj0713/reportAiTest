@@ -62,6 +62,8 @@ app.post('/api/completion', upload.single('photo'), async (req, res) => {
             });
         }
 
+        console.log('OPENAI API REequest Prompt:', JSON.stringify(messages, null, 2));
+
         // OpenAI API 호출
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
