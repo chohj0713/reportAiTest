@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>알림장 작성</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>알림장 작성</h1>
+        </header>
+        <form id="notificationForm">
+            <div class="form-group">
+                <label for="content">내용</label>
+                <textarea id="content" placeholder="알림장은 1:1로 전송됩니다." maxlength="50000"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="photoInput">사진 첨부</label>
+                <input type="file" id="photoInput" accept="image/*">
+            </div>
+            <div id="previewContainer" style="margin: 20px 0; text-align: center;"></div>
+            <button type="button" id="autoCompleteButton">자동 완성</button>
+        </form>
+
+        <script src="script.js"></script>
+    </div>
+</body>
+</html>

@@ -1,141 +1,137 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import ngrok from 'ngrok';
+import OpenAI from 'openai'
 
+// 환경 설정
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const app = express();
 const PORT = 3000;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const GITHUB_PAGES_URL = 'https://chohj0713.github.io/reportAiTest/uploads';
+const MODEL_NAME = 'gpt-4o-mini';
 
-// 파일 업로드 설정
+let NGROK_URL = ''; // 동적 ngrok URL 저장 변수
+
+// OpenAI 초기화
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+});
+
+// 파일 업로드를 위한 multer 설정
+const uploadPath = path.join(__dirname, 'uploads');
 const upload = multer({
     storage: multer.diskStorage({
         destination: (req, file, cb) => {
-            const uploadPath = path.join(__dirname, 'uploads');
             if (!fs.existsSync(uploadPath)) {
                 fs.mkdirSync(uploadPath, { recursive: true });
             }
-            cb(null, uploadPath);
+            cb(null, uploadPath); // 업로드 경로 설정
         },
         filename: (req, file, cb) => {
-            cb(null, `${Date.now()}-${file.originalname}`);
-        }
+            const uniqueName = `${Date.now()}-${file.originalname}`;
+            cb(null, uniqueName); // 고유 파일 이름 생성
+        },
     }),
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB 제한
+    limits: { fileSize: 5 * 1024 * 1024 }, // 최대 파일 크기: 5MB
 });
 
-app.use(cors());
+// 미들웨어 설정
+app.use(cors({ origin: '*' }));
 app.use(express.json());
+app.use('/uploads', express.static(uploadPath)); // 업로드된 파일 정적 제공
+app.use(express.static(path.join(__dirname, 'public'))); // 정적 파일 제공
 
-// 업로드된 파일의 URL 반환 API
+// 루트 경로 처리
+app.get('/', (_, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// /uploads 요청 처리 (디렉토리 내용 반환)
+app.get('/uploads', (req, res) => {
+    fs.readdir(uploadPath, (err, files) => {
+        if (err) {
+            return res.status(500).json({ error: '디렉토리를 읽을 수 없습니다.' });
+        }
+        const fileUrls = files.map(file => `${NGROK_URL}/uploads/${file}`);
+        res.json({ files: fileUrls });
+    });
+});
+
+// 파일 업로드 API
 app.post('/uploads', upload.single('photo'), (req, res) => {
-    try {
-        const fileName = req.file?.filename || null;
+    if (!req.file) {
+        console.error('파일 업로드 실패');
+        return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
+    }
 
-        if (!fileName) {
-            return res.status(400).json({ error: '파일 업로드 실패' });
+    const fileUrl = `${NGROK_URL}/uploads/${req.file.filename}`;
+    console.log('Uploaded file URL:', fileUrl);
+
+    res.status(200).json({ fileUrl });
+});
+
+// ngrok URL 반환 API
+app.get('/server-url', (_, res) => {
+    if (!NGROK_URL) {
+        return res.status(500).json({ error: 'ngrok URL이 설정되지 않았습니다.' });
+    }
+    res.status(200).json({ url: NGROK_URL });
+});
+
+// OpenAI API 요청 처리
+app.post('/api/completion', async (req, res) => {
+    try {
+        const { messages } = req.body;
+
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+            console.error('유효하지 않은 메시지 요청:', messages);
+            return res.status(400).json({ error: '메시지가 제공되지 않았습니다.' });
         }
 
-        const imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
-        console.log('Uploaded file URL:', imageURL);
+        console.log('OpenAI 요청 데이터:', JSON.stringify(messages, null, 2));
 
-        // 업로드된 이미지의 URL 반환
-        res.status(200).json({ url: imageURL });
+        const response = await openai.chat.completions.create({
+            model: MODEL_NAME, // 모델 사용
+            messages,
+        });
+
+        if (!response || !response.choices || response.choices.length === 0) {
+            console.error('OpenAI 응답 데이터가 올바르지 않습니다:', response);
+            return res.status(500).json({ error: 'OpenAI 응답 데이터가 올바르지 않습니다.' });
+        }
+
+        const result = response.choices[0].message?.content;
+
+        if (!result) {
+            console.error('OpenAI 응답에서 결과가 비어 있습니다:', response.data);
+            return res.status(500).json({ error: 'OpenAI 응답이 비어 있습니다.' });
+        }
+
+        res.status(200).json({ result });
     } catch (error) {
-        console.error('File upload error:', error.message);
-        res.status(500).json({ error: '파일 업로드 중 문제가 발생했습니다.', details: error.message });
+        console.error('OpenAI 요청 실패:', error.message);
+        res.status(500).json({ error: '서버 오류', details: error.message });
     }
 });
 
-// 이미지 및 텍스트 처리 API
-app.post('/api/completion', upload.single('photo'), async (req, res) => {
+// 서버 및 ngrok 시작
+const startServer = async () => {
     try {
-        const content = req.body.content?.trim() || '애견유치원 알림장을 작성해줘.';
-        const fileName = req.file?.filename || null;
-
-        // 이미지 URL 생성
-        let imageURL = null;
-        if (fileName) {
-            imageURL = `${GITHUB_PAGES_URL}/${fileName}`;
-        }
-
-        // 로그: 업로드된 파일 확인
-        console.log('Uploaded file Name:', req.file ? fileName : 'No file uploaded');
-        console.log('Generated imageURL:', imageURL || 'No image uploaded');
-
-        // 메시지 초기화
-        const messages = [
-            { role: 'user', content: [{ type: 'text', text: '애견유치원 알림장을 작성해줘.' }] }
-        ];
-
-        // 텍스트 내용 추가
-        if (content) {
-            messages.push({ role: 'user', content: [{ type: 'text', text: `내용을 참고해서 작성해줘: ${content}` }] });
-        }
-
-        // 이미지 URL 추가
-        if (imageURL) {
-            messages.push({
-                role: 'user',
-                content: [
-                    { type: 'text', text: '사진을 분석해서 애견유치원 알림장을 작성해줘.' },
-                    { type: 'image_url', image_url: { url: imageURL } }
-                ]
-            });
-        }
-
-        // OpenAI API 요청 메시지 로깅
-        console.log('OpenAI API Request Prompt:', JSON.stringify(messages, null, 2));
-
-        // OpenAI API 호출
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages,
-                max_completion_tokens: 500
-            })
+        app.listen(PORT, () => {
+            console.log(`Local server is running on http://localhost:${PORT}`);
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('OpenAI API Error:', errorText);
-            return res.status(response.status).json({
-                error: `OpenAI API Error: ${response.statusText}`,
-                details: errorText
-            });
-        }
-
-        const data = await response.json();
-        const completion = data.choices[0]?.message?.content?.trim();
-
-        res.status(200).json({ result: completion });
+        NGROK_URL = await ngrok.connect(PORT); // ngrok 실행
+        console.log(`ngrok tunnel opened at: ${NGROK_URL}`);
+        console.log(`Uploads are available at ${NGROK_URL}/uploads`);
     } catch (error) {
-        console.error('Server Error:', {
-            message: error.message,
-            stack: error.stack
-        });
-        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+        console.error('ngrok 실행 중 오류:', error.message);
+        NGROK_URL = `http://localhost:${PORT}`;
     }
-});
+};
 
-// 업로드된 파일 제공
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// 서버 실행
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-    console.log(`Uploads are available at http://localhost:${PORT}/uploads`);
-    console.log(`GitHub Pages URL: ${GITHUB_PAGES_URL}`);
-});
+startServer();
